@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -42,12 +44,97 @@ var tasks = map[string]Task{
 // Ниже напишите обработчики для каждого эндпоинта
 // ...
 
+func getTasks(w http.ResponseWriter, r *http.Request) {
+	// сериализуем данные из слайса tasks
+
+	resp, err := json.Marshal(tasks)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// в заголовок записываем тип контента, у нас это данные в формате JSON
+	w.Header().Set("Content-Type", "application/json")
+	// так как все успешно, то статус OK
+	w.WriteHeader(http.StatusOK)
+	// записываем сериализованные в JSON данные в тело ответа
+	w.Write(resp)
+}
+
+func getTask(w http.ResponseWriter, r *http.Request) {
+	// is task in map?
+	id := chi.URLParam(r, "id")
+	task, ok := tasks[id]
+
+	if !ok {
+		http.Error(w, "task not found ", http.StatusNoContent)
+		return
+	}
+	// сериализуем данные из слайса task
+	resp, err := json.Marshal(task)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// в заголовок записываем тип контента, у нас это данные в формате JSON
+	w.Header().Set("Content-Type", "application/json")
+	// так как все успешно, то статус OK
+	w.WriteHeader(http.StatusOK)
+	// записываем сериализованные в JSON данные в тело ответа
+	w.Write(resp)
+}
+func postTask(w http.ResponseWriter, r *http.Request) {
+	var task Task
+	var buf bytes.Buffer
+
+	_, err := buf.ReadFrom(r.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err = json.Unmarshal(buf.Bytes(), &task); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	tasks[task.ID] = task
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+}
+
+func deleteTask(w http.ResponseWriter, r *http.Request) {
+	// is task in map?
+	id := chi.URLParam(r, "id")
+	_, ok := tasks[id]
+
+	if !ok {
+		http.Error(w, "task not found ", http.StatusNoContent)
+		return
+	}
+	// delete key in map
+	delete(tasks, id)
+	// в заголовок записываем тип контента, у нас это данные в формате JSON
+	w.Header().Set("Content-Type", "application/json")
+	// так как все успешно, то статус OK
+	w.WriteHeader(http.StatusOK)
+	// записываем сериализованные в JSON данные в тело ответа
+	// no body
+	w.Write(nil)
+}
+
 func main() {
 	r := chi.NewRouter()
-
+	//.  -, pos := tasks[id]
+	//  if pos == false no such key in map
 	// здесь регистрируйте ваши обработчики
 	// ...
-
+	r.Get("/tasks", getTasks)
+	r.Get("/tasks/{id}", getTask)
+	r.Post("/tasks", postTask)
+	r.Delete("/tasks/{id}", deleteTask)
 	if err := http.ListenAndServe(":8080", r); err != nil {
 		fmt.Printf("Ошибка при запуске сервера: %s", err.Error())
 		return
